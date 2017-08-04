@@ -30,6 +30,7 @@ public:
 
 private:
     void Initialize(const Radar &radar);
+	void TransformSigmaToRadar();
     void Update(const Radar &radar);
 
     void Initialize(const Lidar &lidar);

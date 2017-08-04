@@ -78,6 +78,7 @@ void UKF::ProcessMeasurement(const Radar &radar) {
     double delta_t = radar.timestamp - time_us_;
 
     Prediction(delta_t);
+	TransformSigmaToRadar();
     Update(radar);
 
     time_us_ = radar.timestamp;
@@ -106,13 +107,6 @@ void UKF::ProcessMeasurement(const Lidar &lidar) {
  * measurement and this one.
  */
 void UKF::Prediction(double delta_t) {
-  /**
-  TODO:
-
-  Complete this function! Estimate the object's location. Modify the state
-  vector, x_. Predict sigma points, the state, and the state covariance matrix.
-  */
-
   VectorXd x_aug = VectorXd(7);
   MatrixXd P_aug = MatrixXd(7, 7);
 
@@ -180,7 +174,9 @@ void UKF::Prediction(double delta_t) {
 
   //cout << "x" << endl << x << endl;
 
-  //predict state covariance matrix
+  // predict state covariance matrix
+  // P =∑ wi (X − x)(X − x)T
+  // The following is equivalent in Eigen. Rather than doing X-Y we can do -X + Y
   MatrixXd diff = (-Xsig_pred_).colwise() + x_;
   P_ = diff * weights_.asDiagonal() * diff.transpose();
 }
@@ -235,4 +231,45 @@ void UKF::Initialize(const Lidar &lidar) {
   x_(PX_INDEX) = lidar.x;
   x_(PY_INDEX) = lidar.y;
   time_us_ = lidar.timestamp;
+}
+
+void UKF::TransformSigmaToRadar()
+{
+	//create matrix for sigma points in measurement space
+	MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug + 1);
+
+	//mean predicted measurement
+	VectorXd z_pred = VectorXd(n_z);
+
+	//measurement covariance matrix S
+	MatrixXd S = MatrixXd(n_z, n_z);
+	//transform sigma points into measurement space
+	for (int i = 0; i < Xsig_pred.cols(); i++) {
+		const double px = Xsig_pred(0, i);
+		const double py = Xsig_pred(1, i);
+		const double v = Xsig_pred(2, i);
+		const double psi = Xsig_pred(3, i);
+
+		Zsig(0, i) = sqrt(px * px + py * py);
+		Zsig(1, i) = atan2(py, px);
+		Zsig(2, i) = (px * cos(psi) * v + py * sin(psi) * v) / sqrt(px * px + py * py);
+	}
+
+	//cout << "Zsig" << endl << Zsig << endl;
+
+	//calculate mean predicted measurement
+	z_pred = Zsig * weights;
+	//cout << "Z pred" << endl << z_pred << endl;
+
+	//calculate measurement covariance matrix S
+	MatrixXd R(n_z, n_z);
+	R.fill(0);
+	R(0, 0) = std_radr * std_radr;
+	R(1, 1) = std_radphi * std_radphi;
+	R(2, 2) = std_radrd * std_radrd;
+
+	MatrixXd diff = (-Zsig).colwise() + z_pred;
+	// TODO: normalize angles here
+	S = diff * weights.asDiagonal() * diff.transpose() + R;
+
 }
