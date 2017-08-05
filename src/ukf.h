@@ -13,6 +13,34 @@ using Eigen::VectorXd;
 class UKF {
 public:
 
+    UKF();
+    virtual ~UKF();
+
+    void ProcessMeasurement(const Radar &radar);
+    void ProcessMeasurement(const Lidar &lidar);
+
+    /**
+     * Prediction Predicts sigma points, the state, and the state covariance
+     * matrix
+     * @param delta_t Time between k and k+1 in s
+     */
+    void Prediction(double delta_t);
+
+    TrackableObjectState GetState();
+
+private:
+    void Initialize(const Radar &radar);
+    void Update(const Radar &radar);
+
+    void Initialize(const Lidar &lidar);
+    void Update(const Lidar &lidar);
+
+private:
+    const int PX_INDEX = 0;
+    const int PY_INDEX = 1;
+    const int V_INDEX = 2;
+    const int YAW_INDEX = 3;
+
   ///* initially set to false, set to true in first call of ProcessMeasurement
   bool is_initialized_;
 
@@ -66,42 +94,6 @@ public:
 
   ///* Sigma point spreading parameter
   double lambda_;
-
-
-  /**
-   * Constructor
-   */
-  UKF();
-
-  /**
-   * Destructor
-   */
-  virtual ~UKF();
-
-  /**
-   * ProcessMeasurement
-   * @param meas_package The latest measurement data of either radar or laser
-   */
-  void ProcessMeasurement(MeasurementPackage meas_package);
-
-  /**
-   * Prediction Predicts sigma points, the state, and the state covariance
-   * matrix
-   * @param delta_t Time between k and k+1 in s
-   */
-  void Prediction(double delta_t);
-
-  /**
-   * Updates the state and the state covariance matrix using a laser measurement
-   * @param meas_package The measurement at k+1
-   */
-  void UpdateLidar(MeasurementPackage meas_package);
-
-  /**
-   * Updates the state and the state covariance matrix using a radar measurement
-   * @param meas_package The measurement at k+1
-   */
-  void UpdateRadar(MeasurementPackage meas_package);
 };
 
 #endif /* UKF_H */
