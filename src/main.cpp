@@ -22,6 +22,7 @@
 #include "json.hpp"
 #include "ukf.h"
 #include "tools.h"
+#include "ukf_test.hpp"
 
 using namespace std;
 using namespace Eigen;
@@ -149,27 +150,31 @@ void ProcessMeasurement(uWS::WebSocket<uWS::SERVER> ws, char *data, size_t lengt
   }
 }
 
-int main() {
-  uWS::Hub h;
+int main()
+{
+    UKFTest test;
+    test.Test2();
 
-  h.onMessage(ProcessMeasurement);
-
-  h.onConnection([](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
-      std::cout << "Connected!!!" << std::endl;
-  });
-
-  h.onDisconnection([](uWS::WebSocket<uWS::SERVER> ws, int code, char *message, size_t length) {
-      std::cout << "Disconnected" << std::endl;
-  });
-
-  int port = 4567;
-  if (h.listen("127.0.0.1", port)) {
-    cout << "Listening on: " << port << endl;
-    h.run();
-    return 0;
-  }
-  else {
-    cout << "Could not start listening";
-    return -1;
-  }
+//  uWS::Hub h;
+//
+//  h.onMessage(ProcessMeasurement);
+//
+//  h.onConnection([](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
+//      std::cout << "Connected!!!" << std::endl;
+//  });
+//
+//  h.onDisconnection([](uWS::WebSocket<uWS::SERVER> ws, int code, char *message, size_t length) {
+//      std::cout << "Disconnected" << std::endl;
+//  });
+//
+//  int port = 4567;
+//  if (h.listen("127.0.0.1", port)) {
+//    cout << "Listening on: " << port << endl;
+//    h.run();
+//    return 0;
+//  }
+//  else {
+//    cout << "Could not start listening";
+//    return -1;
+//  }
 }

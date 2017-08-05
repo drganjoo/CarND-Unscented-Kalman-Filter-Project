@@ -2,6 +2,7 @@
 #include "Eigen/Dense"
 #include "tools.h"
 #include <iostream>
+#include <string>
 
 using namespace std;
 using Eigen::MatrixXd;
@@ -12,9 +13,15 @@ using std::vector;
  * Initializes Unscented Kalman filter
  */
 UKF::UKF() :
+    std_a_(5),
+    std_yawdd_(1),
+    std_laspx_(0.15),
+    std_laspy_(0.15),
+    std_radr_(0.3),
+    std_radphi_(0.03),
+    std_radrd_(0.3),
     n_x_(5),
-    n_aug_(7),
-    lambda_(3 - n_aug_)
+    n_aug_(7)
 {
     // if this is false, laser measurements will be ignored (except during init)
     use_laser_ = true;
@@ -35,35 +42,16 @@ UKF::UKF() :
     P_(3,3) = 1.0;
     P_(4,4) = 1.0;
     
-    // Process noise standard deviation longitudinal acceleration in m/s^2
-    std_a_ = 5;
-    
-    // Process noise standard deviation yaw acceleration in rad/s^2
-    std_yawdd_ = 1;
-    
-    // Lidar measurement noise standard deviation position1 in m
-    std_laspx_ = 0.15;
-    
-    // Lidar measurement noise standard deviation position2 in m
-    std_laspy_ = 0.15;
-    
-    // Radar measurement noise standard deviation radius in m
-    std_radr_ = 0.3;
-    
-    // Radar measurement noise standard deviation angle in rad
-    std_radphi_ = 0.03;
-    
-    // Radar measurement noise standard deviation radius change in m/s
-    std_radrd_ = 0.3;
-    
     time_us_ = 0;
     
     Xsig_pred_ = MatrixXd(n_aug_, 2 * n_aug_ + 1);
     weights_ = VectorXd(2 * n_aug_ + 1);
     
-    weights_(0) = lambda_ / (lambda_ + n_aug_);
+    const int lambda = GetLambda(n_aug_);
+    
+    weights_(0) = lambda / (lambda + n_aug_);
     for (int i = 1; i < weights_.rows(); i++)
-        weights_(i) = 1.0 / (2.0 * (lambda_ + n_aug_));
+        weights_(i) = 1.0 / (2.0 * (lambda + n_aug_));
 }
 
 UKF::~UKF() {}
@@ -132,36 +120,15 @@ void UKF::Prediction(double delta_t)
 {
     VectorXd x_aug = VectorXd(7);
     MatrixXd P_aug = MatrixXd(7, 7);
-    
-    //create augmented mean state
-    x_aug.head(n_x_) = x_;
-    x_aug(n_x_) = 0;              // 0 mean noise
-    x_aug(n_x_ + 1) = 0;          // 0 mean noise
-    
-    // create augmented covariance matrix
-    P_aug.topLeftCorner(n_x_, n_x_) = P_;
-    P_aug(n_x_, n_x_) = std_a_ * std_a_;
-    P_aug(n_x_ + 1, n_x_ + 1) = std_yawdd_ * std_yawdd_;
+
+    GenerateAugStateAndCovariance(&x_aug, &P_aug);
     
     //cout << "P_aug" << endl;
     //cout << P_aug << endl;
     
-    //create square root matrix
-    MatrixXd p_root = P_aug.llt().matrixL();
-    
-    //std::cout << "p_root = " << std::endl << p_root << std::endl;
-    
     // create augmented sigma points
     MatrixXd Xsig_aug(n_aug_, 2 * n_aug_ + 1 );
-    Xsig_aug.col(0) = x_aug;
-    
-    //cout << "X" << endl << x_aug;
-    //cout << "Xsig_aug" << endl << Xsig_aug.col(0) << endl;
-    
-    for (int i = 0; i < n_aug_; i++) {
-        Xsig_aug.col(i + 1) = x_aug + sqrt(lambda_ + n_aug_) * p_root.col(i);
-        Xsig_aug.col(i + 1 + n_aug_) = x_aug - sqrt(lambda_ + n_aug_) * p_root.col(i);
-    }
+    GenerateSigmaPoints(x_aug, P_aug, &Xsig_aug);
     
     const double delta_t2 = delta_t * delta_t; //time diff in sec
     
@@ -358,4 +325,38 @@ void UKF::Update(const VectorXd &z, const MatrixXd &Zsig, const VectorXd &z_pred
     
     x_ = x_ + K * diff_measure;
     P_ = P_ - K * S * K.transpose();
+}
+
+void UKF::GenerateSigmaPoints(const VectorXd &x, const MatrixXd &P, MatrixXd *sigma_points)
+{
+    MatrixXd p_root = P.llt().matrixL();
+    const auto n_pts = x.rows();
+    
+    cout << "n_x" << n_pts << endl;
+    cout << p_root << endl;
+
+    const int lambda = GetLambda(n_pts);
+
+    sigma_points->col(0) = x;
+    
+    for (int i = 0; i < n_pts; i++) {
+        const auto sqroot = sqrt(lambda + n_pts)  * p_root.col(i);
+        
+        sigma_points->col(i + 1) = x + sqroot;
+        sigma_points->col(i + 1 + n_pts) = x - sqroot;
+    }
+}
+
+
+void UKF::GenerateAugStateAndCovariance(VectorXd *x_aug, MatrixXd *P_aug)
+{
+    //create augmented mean state
+    x_aug->head(n_x_) = x_;
+    (*x_aug)(n_x_) = 0;              // 0 mean noise
+    (*x_aug)(n_x_ + 1) = 0;          // 0 mean noise
+    
+    // create augmented covariance matrix
+    P_aug->topLeftCorner(n_x_, n_x_) = P_;
+    (*P_aug)(n_x_, n_x_) = std_a_ * std_a_;
+    (*P_aug)(n_x_ + 1, n_x_ + 1) = std_yawdd_ * std_yawdd_;
 }

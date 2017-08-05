@@ -19,6 +19,8 @@ public:
     void ProcessMeasurement(const Radar &radar);
     void ProcessMeasurement(const Lidar &lidar);
     
+    void Test();
+    
     /**
      * Prediction Predicts sigma points, the state, and the state covariance
      * matrix
@@ -28,8 +30,16 @@ public:
     
     TrackableObjectState GetState();
     
+    friend class UKFTest;
+
+private:
+    inline double GetLambda(const int pts){ return 3 - pts; }
+    
 private:
     void Initialize(const Radar &radar);
+    void GenerateSigmaPoints(const VectorXd &x, const MatrixXd &P, MatrixXd *sigma_points);
+    void GenerateAugStateAndCovariance(VectorXd *x_aug, MatrixXd *P_aug);
+    
     void TransformSigmaToRadar(MatrixXd *sigma_radar_space, VectorXd *pred_radar_space,
                                MatrixXd *covariance_radar_space);
     void TransformSigmaToLidar(MatrixXd *sigma_lidar_space, VectorXd *pred_lidar_space,
@@ -58,15 +68,14 @@ private:
     
     double std_a_;       // Process noise standard deviation longitudinal acceleration in m/s^2
     double std_yawdd_;   // Process noise standard deviation yaw acceleration in rad/s^2
-    double std_laspx_;   // Laser measurement noise standard deviation position1 in m
-    double std_laspy_;   // Laser measurement noise standard deviation position2 in m
-    double std_radr_;    // Radar measurement noise standard deviation radius in m
-    double std_radphi_;  // Radar measurement noise standard deviation angle in rad
-    double std_radrd_ ;  // Radar measurement noise standard deviation radius change in m/s
+    const double std_laspx_;   // Laser measurement noise standard deviation position1 in m
+    const double std_laspy_;   // Laser measurement noise standard deviation position2 in m
+    const double std_radr_;    // Radar measurement noise standard deviation radius in m
+    const double std_radphi_;  // Radar measurement noise standard deviation angle in rad
+    const double std_radrd_ ;  // Radar measurement noise standard deviation radius change in m/s
     
     const int n_x_;      // State dimension
     const int n_aug_;          // Augmented state dimension
-    const double lambda_;      // Sigma point spreading parameter
 };
 
 #endif /* UKF_H */
