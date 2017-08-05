@@ -32,6 +32,8 @@ private:
     void Initialize(const Radar &radar);
     void TransformSigmaToRadar(MatrixXd *sigma_radar_space, VectorXd *pred_radar_space,
                                MatrixXd *covariance_radar_space);
+    void TransformSigmaToLidar(MatrixXd *sigma_lidar_space, VectorXd *pred_lidar_space,
+                               MatrixXd *covariance_lidar_space);
     void Update(const VectorXd &z, const MatrixXd &Zsig, const VectorXd &z_pred, const MatrixXd &S);
     
     void Initialize(const Lidar &lidar);

@@ -72,7 +72,8 @@ UKF::~UKF() {}
  * @param {MeasurementPackage} meas_package The latest measurement data of
  * either radar or laser.
  */
-void UKF::ProcessMeasurement(const Radar &radar) {
+void UKF::ProcessMeasurement(const Radar &radar)
+{
     if (!is_initialized_) {
         Initialize(radar);
     }
@@ -97,15 +98,25 @@ void UKF::ProcessMeasurement(const Radar &radar) {
 }
 
 
-void UKF::ProcessMeasurement(const Lidar &lidar) {
+void UKF::ProcessMeasurement(const Lidar &lidar)
+{
     if (!is_initialized_) {
         Initialize(lidar);
     }
     else {
         double delta_t = lidar.timestamp - time_us_;
         
+        MatrixXd sigma_lidar_space, covaraince_lidar_space;
+        VectorXd pred_lidar_space;
+
         Prediction(delta_t);
-        //Update(lidar);
+        TransformSigmaToLidar(&sigma_lidar_space, &pred_lidar_space, &covaraince_lidar_space);
+        
+        VectorXd z(pred_lidar_space.cols());
+        z(0) = lidar.x;
+        z(1)  = lidar.y;
+        
+        Update(z, sigma_lidar_space, pred_lidar_space, covaraince_lidar_space);
         
         time_us_ = lidar.timestamp;
     }
@@ -117,7 +128,8 @@ void UKF::ProcessMeasurement(const Lidar &lidar) {
  * @param {double} delta_t the change in time (in seconds) between the last
  * measurement and this one.
  */
-void UKF::Prediction(double delta_t) {
+void UKF::Prediction(double delta_t)
+{
     VectorXd x_aug = VectorXd(7);
     MatrixXd P_aug = MatrixXd(7, 7);
     
@@ -195,7 +207,8 @@ void UKF::Prediction(double delta_t) {
     P_ = diff * weights_.asDiagonal() * diff.transpose();
 }
 
-TrackableObjectState UKF::GetState() {
+TrackableObjectState UKF::GetState()
+{
     TrackableObjectState state;
     
     state.p_x = x_(PX_INDEX);
@@ -209,7 +222,8 @@ TrackableObjectState UKF::GetState() {
     return state;
 }
 
-void UKF::Initialize(const Radar &radar) {
+void UKF::Initialize(const Radar &radar)
+{
     const double x = radar.rho * cos(radar.theta);
     const double y = radar.rho * sin(radar.theta);
     x_.fill(0);
@@ -218,7 +232,8 @@ void UKF::Initialize(const Radar &radar) {
     time_us_ = radar.timestamp;
 }
 
-void UKF::Initialize(const Lidar &lidar) {
+void UKF::Initialize(const Lidar &lidar)
+{
     x_.fill(0);
     x_(PX_INDEX) = lidar.x;
     x_(PY_INDEX) = lidar.y;
@@ -275,7 +290,43 @@ void UKF::TransformSigmaToRadar(MatrixXd *sigma_radar_space, VectorXd *pred_rada
     *covariance_radar_space = diff * weights_.asDiagonal() * diff.transpose() + R;
 }
 
-void UKF::Update(const VectorXd &z, const MatrixXd &Zsig, const VectorXd &z_pred, const MatrixXd &S) {
+
+void UKF::TransformSigmaToLidar(MatrixXd *sigma_lidar_space, VectorXd *pred_lidar_space,
+                                MatrixXd *covariance_lidar_space)
+{
+    const int n_z = 2;
+    
+    // create matrix for sigma points in measurement space
+    *sigma_lidar_space = MatrixXd(n_z, 2 * n_aug_ + 1);
+    *pred_lidar_space = VectorXd(n_z);
+    *covariance_lidar_space = MatrixXd(n_z, n_z);
+    
+    // copy over sigma points for px and py already computed
+    (*sigma_lidar_space) = Xsig_pred_.topLeftCorner(n_z, sigma_lidar_space->cols());
+    
+    //cout << "Zsig" << endl << (*sigma_lidar_space) << endl;
+    
+    // Mean predicted measurement would simply be the px and py already computed in x_
+    *pred_lidar_space = x_.topRows(n_z);
+    
+    //cout << "Z pred" << endl << (*pred_lidar_space) << endl;
+    
+    // Measurement covariance matrix S:
+    // S = weights * (Z - z) * (Z - z)transpose + R
+    MatrixXd R(n_z, n_z);
+    R.fill(0);
+    R(0, 0) = std_laspx_ * std_laspx_;
+    R(1, 1) = std_laspy_ * std_laspy_;
+    
+    MatrixXd diff = (-(*sigma_lidar_space)).colwise() + *pred_lidar_space;
+    
+    // S = weights * (Z - z) * (Z - z)transpose + R
+    *covariance_lidar_space = diff * weights_.asDiagonal() * diff.transpose() + R;
+}
+
+
+void UKF::Update(const VectorXd &z, const MatrixXd &Zsig, const VectorXd &z_pred, const MatrixXd &S)
+{
     // T is the Cross Corelation Matrix that maps from the
     // 3 readings of radar to the 7 augmented state matrix that we have
     MatrixXd Tc = MatrixXd(n_x_, z_pred.cols());
