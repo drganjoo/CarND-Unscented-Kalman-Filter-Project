@@ -153,7 +153,7 @@ void ProcessMeasurement(uWS::WebSocket<uWS::SERVER> ws, char *data, size_t lengt
 int main()
 {
     UKFTest test;
-    test.Test2();
+    test.Test4();
 
 //  uWS::Hub h;
 //

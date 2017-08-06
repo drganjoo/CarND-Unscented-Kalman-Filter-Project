@@ -18,10 +18,13 @@ class UKFTest
 {
 public:
     void Test1();
-    void Test2();
+    MatrixXd Test2();
+    void Test3();
+    void Test4();
+    void FinalTest();
 
 private:
-    void PrintAndTest(const Eigen::MatrixXd &sigma, std::istringstream &expected);
+    void PrintAndTest(const char *label, const Eigen::MatrixXd &sigma, std::istringstream &expected);
     
     UKF ukf;
 };

@@ -19,14 +19,6 @@ public:
     void ProcessMeasurement(const Radar &radar);
     void ProcessMeasurement(const Lidar &lidar);
     
-    void Test();
-    
-    /**
-     * Prediction Predicts sigma points, the state, and the state covariance
-     * matrix
-     * @param delta_t Time between k and k+1 in s
-     */
-    void Prediction(double delta_t);
     
     TrackableObjectState GetState();
     
@@ -36,9 +28,15 @@ private:
     inline double GetLambda(const int pts){ return 3 - pts; }
     
 private:
+    void PredictState(const Measurement *measurement);
+    
     void Initialize(const Radar &radar);
-    void GenerateSigmaPoints(const VectorXd &x, const MatrixXd &P, MatrixXd *sigma_points);
+    void Initialize(const Lidar &lidar);
+
+    MatrixXd GenerateSigmaPoints(const VectorXd &x, const MatrixXd &P);
     void GenerateAugStateAndCovariance(VectorXd *x_aug, MatrixXd *P_aug);
+    void PredictSigmaPoints(const MatrixXd &Xsig_aug, const double delta_t);
+    void PredictMeanAndCovariance();
     
     void TransformSigmaToRadar(MatrixXd *sigma_radar_space, VectorXd *pred_radar_space,
                                MatrixXd *covariance_radar_space);
@@ -46,7 +44,6 @@ private:
                                MatrixXd *covariance_lidar_space);
     void Update(const VectorXd &z, const MatrixXd &Zsig, const VectorXd &z_pred, const MatrixXd &S);
     
-    void Initialize(const Lidar &lidar);
     //void Update(const Lidar &lidar);
     
 private:
@@ -70,9 +67,9 @@ private:
     double std_yawdd_;   // Process noise standard deviation yaw acceleration in rad/s^2
     const double std_laspx_;   // Laser measurement noise standard deviation position1 in m
     const double std_laspy_;   // Laser measurement noise standard deviation position2 in m
-    const double std_radr_;    // Radar measurement noise standard deviation radius in m
-    const double std_radphi_;  // Radar measurement noise standard deviation angle in rad
-    const double std_radrd_ ;  // Radar measurement noise standard deviation radius change in m/s
+    double std_radr_;    // Radar measurement noise standard deviation radius in m
+    double std_radphi_;  // Radar measurement noise standard deviation angle in rad
+    double std_radrd_ ;  // Radar measurement noise standard deviation radius change in m/s
     
     const int n_x_;      // State dimension
     const int n_aug_;          // Augmented state dimension

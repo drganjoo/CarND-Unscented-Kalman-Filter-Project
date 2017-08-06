@@ -35,11 +35,19 @@ struct Measurement
     long long timestamp;
 };
 
+
 struct Radar : Measurement
 {
     double rho;
     double theta;
     double rhodot;
+    
+    Radar& operator >>(Eigen::VectorXd &z) {
+        z = Eigen::VectorXd(3);
+        z << rho, theta, rhodot;
+        
+        return *this;
+    }
 };
 
 struct Lidar : Measurement
