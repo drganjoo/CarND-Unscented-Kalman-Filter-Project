@@ -19,8 +19,8 @@ public:
     void ProcessMeasurement(const Radar &radar);
     void ProcessMeasurement(const Lidar &lidar);
     
-    
     TrackableObjectState GetState();
+    double GetNis() { return nis_; }
     
     friend class UKFTest;
 
@@ -42,8 +42,9 @@ private:
                                MatrixXd *covariance_radar_space);
     void TransformSigmaToLidar(MatrixXd *sigma_lidar_space, VectorXd *pred_lidar_space,
                                MatrixXd *covariance_lidar_space);
-    void Update(const VectorXd &z, const MatrixXd &Zsig, const VectorXd &z_pred, const MatrixXd &S);
+    void Update(const VectorXd &z, const MatrixXd &Zsig, const VectorXd &z_pred, const MatrixXd &S, bool normalize = true);
     
+    void ComputeNIS(const VectorXd &z, const VectorXd &z_pred, const MatrixXd &S);
     //void Update(const Lidar &lidar);
     
 private:
@@ -53,13 +54,15 @@ private:
     const int YAW_INDEX = 3;
     
     bool is_initialized_;
-    bool use_laser_;     // ignore lidar if set
-    bool use_radar_;     // ignore radar if set
+    bool use_laser_;     // ignore lidar if not set
+    bool use_radar_;     // ignore radar if not set
     
     VectorXd x_;         // state: [pos1 pos2 vel_abs yaw_angle yaw_rate] in SI units and rad
     MatrixXd P_;         // state covariance matrix
     MatrixXd Xsig_pred_; // predicted sigma points matrix
     VectorXd weights_;   // Weights of sigma points
+    
+    Eigen::MatrixXd R_laser_;
     
     long long time_us_;  // last reading time in microseconds
     
@@ -73,6 +76,8 @@ private:
     
     const int n_x_;      // State dimension
     const int n_aug_;          // Augmented state dimension
+    
+    double nis_;
 };
 
 #endif /* UKF_H */

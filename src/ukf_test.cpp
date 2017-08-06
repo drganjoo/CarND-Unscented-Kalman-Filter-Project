@@ -70,8 +70,7 @@ void UKFTest::Test4()
     r.theta = 0.2187,   //phi in rad
     r.rhodot = 2.0062;   //rho_dot in m/s
     
-    VectorXd z;
-    r >> z;
+    VectorXd z = r.GetVector();
     
     ukf.Update(z, Zsig, z_pred, S);
     

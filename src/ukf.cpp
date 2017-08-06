@@ -23,10 +23,7 @@ std_radrd_(0.3),
 n_x_(5),
 n_aug_(7)
 {
-    // if this is false, laser measurements will be ignored (except during init)
     use_laser_ = true;
-    
-    // if this is false, radar measurements will be ignored (except during init)
     use_radar_ = true;
     
     // initial state vector
@@ -45,6 +42,7 @@ n_aug_(7)
     time_us_ = 0;
     
     Xsig_pred_ = MatrixXd(n_x_, 2 * n_aug_ + 1);
+    Xsig_pred_.fill(0);
     weights_ = VectorXd(2 * n_aug_ + 1);
     
     const int lambda = GetLambda(n_aug_);
@@ -55,6 +53,10 @@ n_aug_(7)
     
     // sum of weights has to be 1
     assert(weights_.sum() - 1 < 0.001);
+    
+    R_laser_ = MatrixXd(2, 2);
+    R_laser_ << std_laspx_ * std_laspx_, 0,
+                0, std_laspy_ * std_laspy_;
 }
 
 UKF::~UKF() {}
@@ -65,6 +67,9 @@ void UKF::ProcessMeasurement(const Radar &radar)
         Initialize(radar);
     }
     else {
+        if (!use_radar_)
+            return;
+
         PredictState(&radar);
         
         MatrixXd radar_sig, radar_S;
@@ -72,11 +77,7 @@ void UKF::ProcessMeasurement(const Radar &radar)
         
         TransformSigmaToRadar(&radar_sig, &radar_pred, &radar_S);
         
-        VectorXd z(radar_pred.cols());
-        z(0) = radar.rho;
-        z(1)  = radar.theta;
-        z(2) = radar.rhodot;
-        
+        VectorXd z = radar.GetVector();
         Update(z, radar_sig, radar_pred, radar_S);
     }
 }
@@ -88,31 +89,48 @@ void UKF::ProcessMeasurement(const Lidar &lidar)
         Initialize(lidar);
     }
     else {
-        PredictState(&lidar);
-        
-        MatrixXd lidar_sig, lidar_S;
-        VectorXd lidar_pred;
+        if (!use_laser_)
+            return;
 
-        TransformSigmaToLidar(&lidar_sig, &lidar_pred, &lidar_S);
+        PredictState(&lidar);
+
+        VectorXd z(2);
+        z << lidar.x, lidar.y;
+
+        MatrixXd H = MatrixXd(2, n_x_);
+        H << 1, 0, 0, 0, 0,
+                    0, 1, 0, 0, 0;
+
+        VectorXd y = z - H * x_;
+        MatrixXd Ht = H.transpose();
+        MatrixXd S = H * P_ * Ht + R_laser_;
+        MatrixXd Si = S.inverse();
+        MatrixXd K = P_ * Ht * Si;
+        MatrixXd I = MatrixXd::Identity(n_x_, n_x_);
         
-        VectorXd z(lidar_pred.cols());
-        z(0) = lidar.x;
-        z(1)  = lidar.y;
+        x_ = x_ + (K * y);
+        P_ = (I - K * H) * P_;
         
-        Update(z, lidar_sig, lidar_pred, lidar_S);
+//        MatrixXd lidar_sig, lidar_S;
+//        VectorXd lidar_pred;
+//
+//        TransformSigmaToLidar(&lidar_sig, &lidar_pred, &lidar_S);
+//        
+//
+//        Update(z, lidar_sig, lidar_pred, lidar_S, false);
     }
 }
 
 
 void UKF::PredictState(const Measurement *measurement)
 {
-    double delta_t_secs = (measurement->timestamp - time_us_) / 1000.0;
+    double delta_t_secs = (measurement->timestamp - time_us_) / 1000000.0;
     time_us_ = measurement->timestamp;
     
-    assert(delta_t_secs == 0.05);
+    assert(fabs(delta_t_secs - 0.05) < 0.001);
 
-    VectorXd x_aug = VectorXd(7);
-    MatrixXd P_aug = MatrixXd(7, 7);
+    VectorXd x_aug;
+    MatrixXd P_aug;
     
     GenerateAugStateAndCovariance(&x_aug, &P_aug);
     
@@ -240,7 +258,7 @@ void UKF::TransformSigmaToLidar(MatrixXd *Zsig, VectorXd *z_pred,
 }
 
 
-void UKF::Update(const VectorXd &z, const MatrixXd &Zsig, const VectorXd &z_pred, const MatrixXd &S)
+void UKF::Update(const VectorXd &z, const MatrixXd &Zsig, const VectorXd &z_pred, const MatrixXd &S, bool normalize /*= true*/)
 {
     MatrixXd diff_x = (-Xsig_pred_).colwise() + x_;
     MatrixXd diff_z = (-Zsig).colwise() + z_pred;   // Zk - z
@@ -248,9 +266,10 @@ void UKF::Update(const VectorXd &z, const MatrixXd &Zsig, const VectorXd &z_pred
     //cout << "diff_x" << endl << diff_x << endl;
     //cout << "diff_z" << endl << diff_z << endl;
     
-    // normalize angles
-    for (int i = 0; i < diff_z.cols(); i++) {
-        diff_z(1, i) = Tools::NormalizeAngleRad(diff_z(1, i));
+    if (normalize) {
+        for (int i = 0; i < diff_z.cols(); i++) {
+            diff_z(1, i) = Tools::NormalizeAngleRad(diff_z(1, i));
+        }
     }
     
     // T is the Cross Corelation Matrix that maps from the
@@ -265,15 +284,18 @@ void UKF::Update(const VectorXd &z, const MatrixXd &Zsig, const VectorXd &z_pred
     //cout << "K" << endl << K << endl;
     
     //update state mean and covariance matrix
+    VectorXd diff_measure = z - z_pred;
     
-    MatrixXd diff_measure = z - z_pred;
-    // normalize angles
-    for (int i = 0; i < diff_z.cols(); i++) {
-        diff_z(1, i) = Tools::NormalizeAngleRad(diff_z(1, i));
+    if (normalize) {
+        for (int i = 0; i < diff_z.cols(); i++) {
+            diff_z(1, i) = Tools::NormalizeAngleRad(diff_z(1, i));
+        }
     }
     
     x_ = x_ + K * diff_measure;
     P_ = P_ - K * S * K.transpose();
+    
+    ComputeNIS(z, z_pred, S);
 }
 
 MatrixXd UKF::GenerateSigmaPoints(const VectorXd &x, const MatrixXd &P)
@@ -282,8 +304,8 @@ MatrixXd UKF::GenerateSigmaPoints(const VectorXd &x, const MatrixXd &P)
     MatrixXd sigma_points(n_pts, 2 * n_pts + 1);
     MatrixXd p_root = P.llt().matrixL();
     
-    cout << "n_x" << n_pts << endl;
-    cout << p_root << endl;
+    //cout << "n_x" << n_pts << endl;
+    //cout << p_root << endl;
     
     const int lambda = GetLambda(n_pts);
     
@@ -303,6 +325,9 @@ MatrixXd UKF::GenerateSigmaPoints(const VectorXd &x, const MatrixXd &P)
 
 void UKF::GenerateAugStateAndCovariance(VectorXd *x_aug, MatrixXd *P_aug)
 {
+    *x_aug = VectorXd(n_aug_);
+    *P_aug = MatrixXd(n_aug_, n_aug_);
+    
     x_aug->fill(0);
     P_aug->fill(0);
     
@@ -354,7 +379,7 @@ void UKF::PredictSigmaPoints(const MatrixXd &Xsig_aug, const double delta_t)
 
 void UKF::PredictMeanAndCovariance()
 {
-    cout << "Weights: " << endl << weights_ << endl;
+    //cout << "Weights: " << endl << weights_ << endl;
     // predicted mean / covariance
     // x = Σ wi * X_sigma
     // P =∑ wi (X − x)(X − x)T
@@ -363,4 +388,10 @@ void UKF::PredictMeanAndCovariance()
     
     MatrixXd diff = (-Xsig_pred_).colwise() + x_;
     P_ = diff * weights_.asDiagonal() * diff.transpose();
+}
+
+void UKF::ComputeNIS(const VectorXd &z, const VectorXd &z_pred, const MatrixXd &S)
+{
+    VectorXd diff = z - z_pred;
+    nis_ = diff.transpose() * S.inverse() * diff;
 }

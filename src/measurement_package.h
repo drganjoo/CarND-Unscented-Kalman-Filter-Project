@@ -42,11 +42,10 @@ struct Radar : Measurement
     double theta;
     double rhodot;
     
-    Radar& operator >>(Eigen::VectorXd &z) {
-        z = Eigen::VectorXd(3);
+    Eigen::VectorXd GetVector() const {
+        Eigen::VectorXd z(3);
         z << rho, theta, rhodot;
-        
-        return *this;
+        return z;
     }
 };
 
