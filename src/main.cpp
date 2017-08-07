@@ -32,9 +32,13 @@ using json = nlohmann::json;
 vector<VectorXd> estimations;
 vector<VectorXd> ground_truth;
 UKF ukf;
-ofstream nis_file;
 
-const char *kVersion = "1.0";
+#ifdef __NIS_FILE
+ofstream nis_file;
+#endif
+
+const char *kVersion = "1.1";
+
 
 Radar ParseRadar(istream &tokens) {
     Radar r;
@@ -116,7 +120,7 @@ void ProcessMeasurement(uWS::WebSocket<uWS::SERVER> ws, char *data, size_t lengt
     string measurement;
     
     if (GetMeasurementLine(ws, data, length, &measurement)) {
-        //cout << measurement << endl;
+
         istringstream iss(measurement);
         
         string type;
@@ -151,21 +155,23 @@ void ProcessMeasurement(uWS::WebSocket<uWS::SERVER> ws, char *data, size_t lengt
         VectorXd rmse = Tools::CalculateRMSE(estimations, ground_truth);
         SendEstimates(ws, state, rmse);
         
+#ifdef __NIS_FILE
         nis_file << ukf.GetNis() << endl;
+#endif
     }
 }
 
 int main()
 {
-//    UKFTest test;
-//    test.Test4();
-
     cout << "Version: " << kVersion << endl;
+    cout << "Using std_a: " << ukf.GetStdA() << ", std_yawdd: " << ukf.GetStdYawdd() << endl;
     
+#ifdef __NIS_FILE
     nis_file.open("nis_file.txt");
     if (!nis_file.is_open()) {
         cout << "could not open nis_file.txt";
     }
+#endif
     
     uWS::Hub h;
     
